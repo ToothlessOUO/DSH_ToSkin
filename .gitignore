@@ -1,0 +1,16 @@
+# Python bytecode / caches
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# npm pack output
+*.tgz
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Downloaded font sources (not part of the repo)
+font-lab/_src/

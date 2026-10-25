@@ -1,0 +1,10 @@
+- insert:
+    - id: zone-skin
+      name: '@local/dsh-zone-skin'
+      config:
+        colorway: zone
+        canvas: auto
+        motion: full
+        dots: true
+        chime: true
+        chimeVolume: mid

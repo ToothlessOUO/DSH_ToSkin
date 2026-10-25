@@ -1,0 +1,48 @@
+{
+  "name": "@local/dsh-zone-skin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ZONE skin: black-and-orange hardware styling for the Harness Web UI with sticker geometry, hazard stripes, an LED device bar and four colorways.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "NOTES.md",
+    "AGENTS.md",
+    "tests/"
+  ],
+  "icon": "icon.svg",
+  "scripts": {
+    "check": "node --check index.js && node --check client.js && node tests/token-contrast.mjs && node tests/css-coverage.mjs && node tests/chime-behavior.mjs",
+    "probe:read": "node tests/probe-read.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-settings-general",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="ZONE skin">
+  <rect width="256" height="256" fill="#0e0d0c"/>
+  <rect x="28" y="28" width="200" height="200" rx="34" fill="#141110" stroke="#ff6f1a" stroke-width="9"/>
+  <path d="M84 78h88v22H84z" fill="#efe9db"/>
+  <path d="M150 100l22 0-64 56-22 0z" fill="#efe9db"/>
+  <path d="M84 156h88v22H84z" fill="#efe9db"/>
+  <g fill="#ff6f1a">
+    <rect x="186" y="96" width="12" height="16" rx="4"/>
+    <rect x="186" y="120" width="12" height="16" rx="4"/>
+    <rect x="186" y="144" width="12" height="16" rx="4"/>
+  </g>
+  <circle cx="56" cy="56" r="6" fill="#ff6f1a"/>
+  <circle cx="200" cy="200" r="6" fill="#ff6f1a"/>
+  <g fill="#efe9db" opacity="0.22">
+    <circle cx="70" cy="200" r="4"/><circle cx="86" cy="200" r="4"/><circle cx="102" cy="200" r="4"/>
+  </g>
+</svg>
