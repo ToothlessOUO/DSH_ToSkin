@@ -80,16 +80,19 @@ die-cut sticker graphics and warm LED glow.
   `--zone-cast-tint` to `var(--zone-brand)` for the colorway accent, `#fff` for a
   white edge, or `#000` for a neutral cast.
   Over the chat area a pointer lens lights the same grid with square dots in the
-  colorway accent. The head (100px) is written straight from the pointer event and
-  never lags the mouse; behind it a canvas repaints the same 4px squares on the
-  same 7px grid from the pointer samples every frame, each cell taking the level of
-  the freshest pass over it, so a sweep leaves a long dotted wake instead of a
-  second, larger circle easing along. A sample lives 3.6 s: up to then the cell
-  dims continuously, and at that point it stops being painted at all, which is what
-  makes the wake reach the sheet colour exactly — no alpha floor, and crossing the
-  same cells again re-lights them rather than stacking into a bright patch. The
-  head fades out over the composer card and device bar and when the pointer leaves
-  the chat; the wake finishes its own fade. Motion `off` disables both.
+  colorway accent. The head (100px radius) is written straight from the pointer
+  event and never lags the mouse; behind it a canvas repaints the same 4px squares
+  on the same 7px grid from the pointer samples every frame, each cell taking the
+  level of the freshest pass over it, so a sweep leaves a dotted wake instead of a
+  second, larger circle easing along. The wake is the same size as the head — the
+  same 100px radius and the same mask curve, dimming outward — and its peak is 9.5%
+  against the head's 10%, so it always reads as the head's tail rather than a
+  second light. A sample lives 1.1 s: up to then the cell dims continuously, and at
+  that point it stops being painted at all, which is what makes the wake reach the
+  sheet colour exactly — no alpha floor, and crossing the same cells again
+  re-lights them rather than stacking into a bright patch. The head fades out over
+  the composer card and device bar and when the pointer leaves the chat; the wake
+  finishes its own fade. Motion `off` disables both.
 - **Sidebar foot console** 鈥?a colorway dropdown (swatch + name) built on the
   app's own `Menu` primitive, so it shares the Agent menus' surface, item and
   keyboard behaviour, plus a canvas key; in the collapsed rail it becomes a

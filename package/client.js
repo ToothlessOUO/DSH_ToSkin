@@ -1403,12 +1403,12 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           const PITCH = 7;      // the halftone tile, in CSS px
           const INSET = 1.5;    // square offset inside the tile
           const DOT = 4;        // square side
-          const BRUSH = 15;     // wake half-width
-          const STEP = 5;       // px between samples along a segment
-          const LIFE = 3600;    // ms a dot stays lit, then it is exactly gone
-          const CORE = 0.5;     // accent alpha at the centre of the brush
-          const JUMP = 96;      // a longer gap between samples is not a line
-          const KEEP = 1600;    // samples retained, so a flick cannot grow it
+          const BRUSH = 100;    // the head's mask radius: wake and head are one size
+          const STEP = 16;      // px between samples along a segment
+          const LIFE = 1100;    // ms a dot stays lit, then it is exactly gone
+          const CORE = 0.095;   // peak alpha, just under the head's 10%
+          const JUMP = 160;     // a longer gap between samples is not a line
+          const KEEP = 640;     // samples retained, so a flick cannot grow it
           /* The wake is re-drawn from the sample list every frame instead of being
              accumulated into the bitmap and faded. That is what lets it reach the
              background exactly: a cell takes the level of the freshest sample over
@@ -1419,8 +1419,20 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           const WAKE = brandOf(state.colorway, state.mode);
           const RAMP = Array.from({ length: 16 }, (_, step) => rgba(
             WAKE,
-            (CORE * (0.4 + (0.6 * step) / 15)).toFixed(3),
+            (CORE * (0.35 + (0.65 * step) / 15)).toFixed(3),
           ));
+          /* The head's own mask curve, tabulated once: opaque at the centre, 55%
+             at 46% of the radius, nothing at the rim. Reusing it keeps the wake and
+             the head the same object — same size, same soft edge — and the peak is
+             set below the head's 10% so the wake can never out-shine what draws
+             it. Index is 1 - d²/r², so the loop needs no square root. */
+          const CURVE = new Float32Array(65);
+          for (let step = 0; step <= 64; step += 1) {
+            const d = Math.sqrt(1 - step / 64);
+            CURVE[step] = d <= 0.46
+              ? 1 - (0.45 / 0.46) * d
+              : 0.55 * (1 - (d - 0.46) / 0.54);
+          }
 
           let rect = element.getBoundingClientRect();
           let dpr = 0;
@@ -1428,6 +1440,10 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           let rows = 0;
           let levels = new Uint8Array(0);
           let touched = new Int32Array(0);
+          let ordered = new Int32Array(0);
+          const counts = new Int32Array(16);
+          const starts = new Int32Array(16);
+          const filled = new Int32Array(16);
           let frame = 0;
           let fromX = null;
           let fromY = null;
@@ -1449,6 +1465,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
             rows = Math.ceil(rect.height / PITCH) + 1;
             levels = new Uint8Array(cols * rows);
             touched = new Int32Array(cols * rows);
+            ordered = new Int32Array(cols * rows);
             samples.length = 0;
             context.clearRect(0, 0, rect.width, rect.height);
           };
@@ -1462,19 +1479,26 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           /* Clear, drop the samples that have reached LIFE, then paint every grid
              cell once at the level of the freshest sample covering it — so a cell
              crossed twice is not brighter than one crossed once, and a cell whose
-             last pass has expired is left unpainted, i.e. background. */
+             last pass has expired is left unpainted, i.e. background. Cells are
+             grouped by level and filled with one path per level: a 100px brush
+             covers ~640 cells, and ~40k `fillRect` calls per second would cost more
+             than the picture is worth. */
           const draw = () => {
             context.clearRect(0, 0, rect.width, rect.height);
             const now = performance.now();
             let expired = 0;
             while (expired < samples.length && now - samples[expired].at >= LIFE) expired += 1;
             if (expired) samples.splice(0, expired);
+            if (!samples.length) return;
             const limit = BRUSH * BRUSH;
             let count = 0;
             for (let index = 0; index < samples.length; index += 1) {
               const sample = samples[index];
               const age = 1 - (now - sample.at) / LIFE;
               if (age <= 0) continue;
+              /* Age 1 → 0 over LIFE; the 0.6 exponent keeps the near tail from
+                 looking washed out at once, then still lands on 0 at LIFE. */
+              const fade = Math.pow(age, 0.6);
               const first = Math.floor((sample.x - BRUSH) / PITCH);
               const lastCol = Math.floor((sample.x + BRUSH) / PITCH);
               const top = Math.floor((sample.y - BRUSH) / PITCH);
@@ -1485,7 +1509,8 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
                   const cy = row * PITCH + INSET + DOT / 2;
                   const d2 = (cx - sample.x) * (cx - sample.x) + (cy - sample.y) * (cy - sample.y);
                   if (d2 > limit) continue;
-                  const level = Math.round((1 - d2 / limit) * age * 15);
+                  const curve = CURVE[Math.min(64, Math.floor((1 - d2 / limit) * 64))];
+                  const level = Math.round(curve * fade * 15);
                   if (level <= 0) continue;
                   const cell = row * cols + col;
                   if (levels[cell] >= level) continue;
@@ -1494,13 +1519,36 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
                 }
               }
             }
+            if (!count) return;
+            /* Counting sort the cells by level, so each level is one contiguous
+               range and paints as a single path. */
+            counts.fill(0);
+            for (let index = 0; index < count; index += 1) counts[levels[touched[index]]] += 1;
+            let offset = 0;
+            for (let step = 1; step < 16; step += 1) {
+              starts[step] = offset;
+              offset += counts[step];
+            }
+            filled.fill(0);
             for (let index = 0; index < count; index += 1) {
               const cell = touched[index];
-              const col = cell % cols;
-              const row = (cell - col) / cols;
-              context.fillStyle = RAMP[levels[cell]];
-              context.fillRect(col * PITCH + INSET, row * PITCH + INSET, DOT, DOT);
+              const level = levels[cell];
+              ordered[starts[level] + filled[level]] = cell;
+              filled[level] += 1;
               levels[cell] = 0;
+            }
+            for (let step = 1; step < 16; step += 1) {
+              const size = counts[step];
+              if (!size) continue;
+              context.beginPath();
+              for (let index = starts[step]; index < starts[step] + size; index += 1) {
+                const cell = ordered[index];
+                const col = cell % cols;
+                const row = (cell - col) / cols;
+                context.rect(col * PITCH + INSET, row * PITCH + INSET, DOT, DOT);
+              }
+              context.fillStyle = RAMP[step];
+              context.fill();
             }
           };
 
