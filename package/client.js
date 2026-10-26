@@ -796,11 +796,11 @@ html[data-zone-skin] .zone-halftone-hot {
   --lens-x: var(--zone-pointer-x, -400px);
   --lens-y: var(--zone-pointer-y, -400px);
 }
-/* The wake: a canvas drawing the same 4px squares on the same 7px grid, stamped
-   wherever the pointer crosses a cell and faded a little every frame. A sweep
-   keeps drawing for as long as it moves and then dissolves over several seconds,
-   so the trail is a real, ageing line of dots instead of a second, larger circle
-   easing along behind the head. */
+/* The wake: a canvas drawing the same 4px squares on the same 7px grid. It is
+   repainted from the pointer samples every frame, each cell taking the level of
+   the freshest pass over it, so a sweep leaves a real ageing line of dots that
+   reaches the sheet colour exactly when its samples expire — never a residue and
+   never a second, larger circle easing along behind the head. */
 html[data-zone-skin] .zone-trail {
   position: absolute; inset: 0; width: 100%; height: 100%;
   pointer-events: none;
@@ -1403,25 +1403,36 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           const PITCH = 7;      // the halftone tile, in CSS px
           const INSET = 1.5;    // square offset inside the tile
           const DOT = 4;        // square side
-          const BRUSH = 20;     // wake half-width
-          const STEP = 3;       // px between stamps along one segment
-          const FADE = 0.01;    // alpha shed per 60 Hz frame: ~1.15 s half-life
+          const BRUSH = 15;     // wake half-width
+          const STEP = 5;       // px between samples along a segment
+          const LIFE = 3600;    // ms a dot stays lit, then it is exactly gone
+          const CORE = 0.5;     // accent alpha at the centre of the brush
           const JUMP = 96;      // a longer gap between samples is not a line
-          /* Eight alpha steps from the centre of the brush to its rim, so the
-             wake has a soft edge instead of a stencil border. Pre-built strings
-             keep a stamp from allocating one colour per cell. */
+          const KEEP = 1600;    // samples retained, so a flick cannot grow it
+          /* The wake is re-drawn from the sample list every frame instead of being
+             accumulated into the bitmap and faded. That is what lets it reach the
+             background exactly: a cell takes the level of the freshest sample over
+             it, and once that sample is older than LIFE the cell is simply not
+             painted. A self-fading canvas cannot do this — 8-bit alpha bottoms out
+             at 1/255, so the ghost never leaves, and a second pass over the same
+             cells keeps stacking on top of it. */
           const WAKE = brandOf(state.colorway, state.mode);
-          const RAMP = [0.32, 0.42, 0.51, 0.61, 0.7, 0.8, 0.9, 1]
-            .map((share) => rgba(WAKE, 0.22 * share));
+          const RAMP = Array.from({ length: 16 }, (_, step) => rgba(
+            WAKE,
+            (CORE * (0.4 + (0.6 * step) / 15)).toFixed(3),
+          ));
 
           let rect = element.getBoundingClientRect();
           let dpr = 0;
+          let cols = 0;
+          let rows = 0;
+          let levels = new Uint8Array(0);
+          let touched = new Int32Array(0);
           let frame = 0;
-          let last = 0;
-          let stampedAt = 0;
           let fromX = null;
           let fromY = null;
           let active = false;
+          const samples = [];
 
           const size = () => {
             rect = element.getBoundingClientRect();
@@ -1433,49 +1444,70 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
             canvas.width = width;
             canvas.height = height;
             context.setTransform(dpr, 0, 0, dpr, 0, 0);
+            /* New bitmap, new grid: the old samples belong to the old geometry. */
+            cols = Math.ceil(rect.width / PITCH) + 1;
+            rows = Math.ceil(rect.height / PITCH) + 1;
+            levels = new Uint8Array(cols * rows);
+            touched = new Int32Array(cols * rows);
+            samples.length = 0;
+            context.clearRect(0, 0, rect.width, rect.height);
           };
           size();
 
-          /* One 4px square per grid cell the brush covers. Crossing a cell again
-             simply re-lights it; the fade is what makes the wake age. */
-          const stamp = (x, y) => {
+          const push = (x, y, at) => {
+            samples.push({ x, y, at });
+            if (samples.length > KEEP) samples.splice(0, samples.length - KEEP);
+          };
+
+          /* Clear, drop the samples that have reached LIFE, then paint every grid
+             cell once at the level of the freshest sample covering it — so a cell
+             crossed twice is not brighter than one crossed once, and a cell whose
+             last pass has expired is left unpainted, i.e. background. */
+          const draw = () => {
+            context.clearRect(0, 0, rect.width, rect.height);
+            const now = performance.now();
+            let expired = 0;
+            while (expired < samples.length && now - samples[expired].at >= LIFE) expired += 1;
+            if (expired) samples.splice(0, expired);
             const limit = BRUSH * BRUSH;
-            const first = Math.floor((x - BRUSH) / PITCH);
-            const lastCol = Math.floor((x + BRUSH) / PITCH);
-            const top = Math.floor((y - BRUSH) / PITCH);
-            const bottom = Math.floor((y + BRUSH) / PITCH);
-            for (let col = first; col <= lastCol; col += 1) {
-              for (let row = top; row <= bottom; row += 1) {
-                const cx = col * PITCH + INSET + DOT / 2;
-                const cy = row * PITCH + INSET + DOT / 2;
-                const d2 = (cx - x) * (cx - x) + (cy - y) * (cy - y);
-                if (d2 > limit) continue;
-                context.fillStyle = RAMP[Math.min(7, Math.floor((1 - d2 / limit) * 8))];
-                context.fillRect(col * PITCH + INSET, row * PITCH + INSET, DOT, DOT);
+            let count = 0;
+            for (let index = 0; index < samples.length; index += 1) {
+              const sample = samples[index];
+              const age = 1 - (now - sample.at) / LIFE;
+              if (age <= 0) continue;
+              const first = Math.floor((sample.x - BRUSH) / PITCH);
+              const lastCol = Math.floor((sample.x + BRUSH) / PITCH);
+              const top = Math.floor((sample.y - BRUSH) / PITCH);
+              const bottom = Math.floor((sample.y + BRUSH) / PITCH);
+              for (let col = first; col <= lastCol; col += 1) {
+                for (let row = top; row <= bottom; row += 1) {
+                  const cx = col * PITCH + INSET + DOT / 2;
+                  const cy = row * PITCH + INSET + DOT / 2;
+                  const d2 = (cx - sample.x) * (cx - sample.x) + (cy - sample.y) * (cy - sample.y);
+                  if (d2 > limit) continue;
+                  const level = Math.round((1 - d2 / limit) * age * 15);
+                  if (level <= 0) continue;
+                  const cell = row * cols + col;
+                  if (levels[cell] >= level) continue;
+                  if (levels[cell] === 0) touched[count++] = cell;
+                  levels[cell] = level;
+                }
               }
+            }
+            for (let index = 0; index < count; index += 1) {
+              const cell = touched[index];
+              const col = cell % cols;
+              const row = (cell - col) / cols;
+              context.fillStyle = RAMP[levels[cell]];
+              context.fillRect(col * PITCH + INSET, row * PITCH + INSET, DOT, DOT);
+              levels[cell] = 0;
             }
           };
 
-          /* Erase a little of the whole bitmap every frame; alpha decays
-             exponentially, which is what gives a long tail and a soft end. The
-             amount is scaled by the frame's own duration, so a 120 Hz window
-             fades at the same wall-clock rate as a 60 Hz one. The loop stops once
-             the wake has been alone long enough to be gone. */
-          const fade = (now) => {
+          const tick = () => {
             frame = 0;
-            const step = last ? Math.min(64, now - last) : 1000 / 60;
-            last = now;
-            const shed = 1 - Math.pow(1 - FADE, step / (1000 / 60));
-            context.globalCompositeOperation = 'destination-out';
-            context.fillStyle = 'rgba(0, 0, 0, ' + shed.toFixed(4) + ')';
-            context.fillRect(0, 0, rect.width, rect.height);
-            context.globalCompositeOperation = 'source-over';
-            if (now - stampedAt > 6000) {
-              context.clearRect(0, 0, rect.width, rect.height);
-              last = 0;
-              return;
-            }
-            frame = window.requestAnimationFrame(fade);
+            draw();
+            if (samples.length) frame = window.requestAnimationFrame(tick);
           };
 
           /* The dots are the sheet's background, so the lens only lights the
@@ -1522,24 +1554,21 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
             const dy = y - fromY;
             const distance = Math.sqrt(dx * dx + dy * dy);
             if (distance < 1) return;
+            const at = performance.now();
             if (distance > JUMP) {
               /* A jump — the pointer left and came back, or the browser dropped
                  the intermediate samples: light the new spot instead of ruling a
                  line across the sheet. */
-              stamp(x, y);
+              push(x, y, at);
             } else {
               const steps = Math.max(1, Math.ceil(distance / STEP));
               for (let step = 1; step <= steps; step += 1) {
-                stamp(fromX + (dx * step) / steps, fromY + (dy * step) / steps);
+                push(fromX + (dx * step) / steps, fromY + (dy * step) / steps, at);
               }
             }
             fromX = x;
             fromY = y;
-            stampedAt = performance.now();
-            if (!frame) {
-              last = 0;
-              frame = window.requestAnimationFrame(fade);
-            }
+            if (!frame) frame = window.requestAnimationFrame(tick);
           };
 
           const observer = typeof ResizeObserver === 'function'
