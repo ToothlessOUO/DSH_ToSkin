@@ -1,4 +1,0 @@
-# Build pipeline artifacts: the unpacked archive and the patched output.
-# rebuild with: node build.js
-unpacked/
-out/
