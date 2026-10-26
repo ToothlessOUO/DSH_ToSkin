@@ -1406,7 +1406,8 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           const BRUSH = 100;    // the head's mask radius: wake and head are one size
           const STEP = 16;      // px between samples along a segment
           const LIFE = 1100;    // ms a dot stays lit, then it is exactly gone
-          const CORE = 0.095;   // peak alpha, just under the head's 10%
+          const CORE = 0.085;   // peak alpha, held under the head's 10%
+          const LEVELS = 32;    // alpha steps from the brush centre to nothing
           const JUMP = 160;     // a longer gap between samples is not a line
           const KEEP = 640;     // samples retained, so a flick cannot grow it
           /* The wake is re-drawn from the sample list every frame instead of being
@@ -1417,9 +1418,14 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
              at 1/255, so the ghost never leaves, and a second pass over the same
              cells keeps stacking on top of it. */
           const WAKE = brandOf(state.colorway, state.mode);
-          const RAMP = Array.from({ length: 16 }, (_, step) => rgba(
+          /* The ramp has to start at zero. A floor on the first step (it used to be
+             0.35 of CORE) paints the faint rim of the brush at a third of full
+             strength, which draws a hard ring at the edge of the wake and then
+             walks it inward as the cells fade — the "outside-in" collapse. Linear
+             steps dim the whole cross-section together instead. */
+          const RAMP = Array.from({ length: LEVELS }, (_, step) => rgba(
             WAKE,
-            (CORE * (0.35 + (0.65 * step) / 15)).toFixed(3),
+            ((CORE * step) / (LEVELS - 1)).toFixed(4),
           ));
           /* The head's own mask curve, tabulated once: opaque at the centre, 55%
              at 46% of the radius, nothing at the rim. Reusing it keeps the wake and
@@ -1441,9 +1447,9 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           let levels = new Uint8Array(0);
           let touched = new Int32Array(0);
           let ordered = new Int32Array(0);
-          const counts = new Int32Array(16);
-          const starts = new Int32Array(16);
-          const filled = new Int32Array(16);
+          const counts = new Int32Array(LEVELS);
+          const starts = new Int32Array(LEVELS);
+          const filled = new Int32Array(LEVELS);
           let frame = 0;
           let fromX = null;
           let fromY = null;
@@ -1510,7 +1516,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
                   const d2 = (cx - sample.x) * (cx - sample.x) + (cy - sample.y) * (cy - sample.y);
                   if (d2 > limit) continue;
                   const curve = CURVE[Math.min(64, Math.floor((1 - d2 / limit) * 64))];
-                  const level = Math.round(curve * fade * 15);
+                  const level = Math.round(curve * fade * (LEVELS - 1));
                   if (level <= 0) continue;
                   const cell = row * cols + col;
                   if (levels[cell] >= level) continue;
@@ -1525,7 +1531,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
             counts.fill(0);
             for (let index = 0; index < count; index += 1) counts[levels[touched[index]]] += 1;
             let offset = 0;
-            for (let step = 1; step < 16; step += 1) {
+            for (let step = 1; step < LEVELS; step += 1) {
               starts[step] = offset;
               offset += counts[step];
             }
@@ -1537,7 +1543,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
               filled[level] += 1;
               levels[cell] = 0;
             }
-            for (let step = 1; step < 16; step += 1) {
+            for (let step = 1; step < LEVELS; step += 1) {
               const size = counts[step];
               if (!size) continue;
               context.beginPath();
