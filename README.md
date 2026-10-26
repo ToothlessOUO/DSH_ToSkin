@@ -11,6 +11,7 @@ canvases (blacksite / cream).
 | Path | Contents |
 | --- | --- |
 | [`package/`](package/README.md) | The plugin itself (`@local/dsh-zone-skin`) — token layer, stylesheet, slots, tests. Start at its [README](package/README.md); field notes in [NOTES.md](package/NOTES.md), contributor notes in [AGENTS.md](package/AGENTS.md). |
+| [`for_zcode/`](for_zcode/README.md) | The same ZONE skin ported to the ZCode desktop app (app.asar injection route): `zone.css` + `zone-boot.js`, build/apply/restore tooling, tests and an offline testbed. |
 | [`font-lab/`](font-lab/README.md) | The Chinese-font study workspace: specimen sheets, measurements and the installable font files. |
 | `tools/` | Python helpers used to measure fonts and render the specimen sheets. |
 

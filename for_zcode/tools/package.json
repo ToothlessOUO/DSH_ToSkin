@@ -1,0 +1,13 @@
+{
+  "name": "zone-skin-zcode-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Build/apply tooling for the ZONE skin on ZCode (app.asar patch pipeline).",
+  "type": "commonjs",
+  "dependencies": {
+    "@electron/asar": "^4.3.1"
+  },
+  "scripts": {
+    "build": "node build.js"
+  }
+}

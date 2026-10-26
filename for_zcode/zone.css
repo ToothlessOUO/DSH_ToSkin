@@ -1,0 +1,632 @@
+/* ==========================================================================
+   ZONE skin for ZCode — R1
+   黑橙硬件风皮肤：石墨机身、热橙强调、贴纸几何、警戒条纹、LED 设备条。
+
+   Ported from the DSH ZONE skin (@local/dsh-zone-skin 1.0.0). ZCode has no
+   client-plugin slots, so this file travels with zone-boot.js through the
+   app.asar patch (see tools/build.js):
+
+     1. Token layer      — the --color-* semantic variables ZCode's Tailwind v4
+                           theme publishes on <html>, overridden per
+                           colorway x canvas. ZCode derives everything from
+                           these (utilities like bg-card read var(--color-card)),
+                           so one scope recolours the whole shell.
+     2. Stylesheet layer — the skin's own chrome (.zone-*), selection pins,
+                           cursor rules and the two structural touches the
+                           tokens cannot reach.
+
+   The palette inputs live in the "palette inputs" block below; every derived
+   value is computed at runtime with color-mix(), so editing a colour is a
+   one-line edit. tests/token-contrast.mjs re-derives the same numbers and
+   enforces the contrast floors.
+
+   Requires html[data-zone-skin]. tools/build.js writes default attributes on
+   <html> at install time; zone-boot.js keeps them current (prefs, live theme).
+   ========================================================================== */
+
+/* ------------------------------------------------------------ palette inputs */
+
+html[data-zone-skin] {
+  /* keycap paper canvas (day) — the chassis never changes with the colorway */
+  --zone-base: #e8e1d1;
+  --zone-layer1: #f5efe4;
+  --zone-layer2: #dbd3c2;
+  --zone-ink: #171310;
+  --zone-ink-dim: #645a4b;
+  --zone-line: #c8bfa9;
+  --zone-sidebar: #ded5c4;
+  --zone-cream: #efe9db;
+  --zone-graphite: #141110;
+  --zone-cast-ink: 56 44 32;
+  /* one white voice on every lit plate (see NOTES.md — "ink on the accent") */
+  --zone-brand-on: #ffffff;
+}
+
+html[data-zone-skin].dark,
+html[data-zone-skin][data-zone-canvas="night"] {
+  /* blacksite canvas (night) */
+  --zone-base: #2c2927;
+  --zone-layer1: #373330;
+  --zone-layer2: #423d3a;
+  --zone-ink: #f8f3e8;
+  --zone-ink-dim: #ccc1b0;
+  --zone-line: #544c46;
+  --zone-sidebar: #232020;
+  --zone-cast-ink: 0 0 0;
+}
+
+/* Hardware colorways: the chassis stays, only the accent moves.
+   The *_rgb triples are the same colours precomputed as channels for
+   rgba() shadows — box-shadows keep literal rgb() so one bad mix can never
+   invalidate the whole list. */
+html[data-zone-skin][data-zone-colorway="zone"] {
+  --zone-brand-day: #e2560d;  --zone-brand-night: #ff6f1a;
+  --zone-brand-rgb-day: 226 86 13;    --zone-brand-rgb-night: 255 111 26;
+  --zone-shade-rgb-day: 124 47 7;     --zone-shade-rgb-night: 107 47 11;
+}
+html[data-zone-skin][data-zone-colorway="ember"] {
+  --zone-brand-day: #c62c1b;  --zone-brand-night: #ff4632;
+  --zone-brand-rgb-day: 198 44 27;    --zone-brand-rgb-night: 255 70 50;
+  --zone-shade-rgb-day: 109 24 15;    --zone-shade-rgb-night: 107 29 21;
+}
+html[data-zone-skin][data-zone-colorway="hazard"] {
+  --zone-brand-day: #a8770a;  --zone-brand-night: #ffc61a;
+  --zone-brand-rgb-day: 168 119 10;   --zone-brand-rgb-night: 255 198 26;
+  --zone-shade-rgb-day: 92 65 6;      --zone-shade-rgb-night: 107 83 11;
+}
+html[data-zone-skin][data-zone-colorway="cobalt"] {
+  --zone-brand-day: #1f5fd6;  --zone-brand-night: #4d94ff;
+  --zone-brand-rgb-day: 31 95 214;    --zone-brand-rgb-night: 77 148 255;
+  --zone-shade-rgb-day: 17 52 118;    --zone-shade-rgb-night: 32 62 107;
+}
+
+/* canvas resolution: day is the default, .dark flips to night, and a forced
+   canvas (data-zone-canvas="day" | "night") maps BOTH app themes so the
+   app's own preference cannot split the skin. Source order makes the forced
+   night rule beat the day default and the forced day rule beat the .dark
+   flip — all four combinations land on exactly one scheme. */
+html[data-zone-skin] {
+  --zone-brand: var(--zone-brand-day, #e2560d);
+  --zone-brand-rgb: var(--zone-brand-rgb-day, 226 86 13);
+  --zone-shade-rgb: var(--zone-shade-rgb-day, 124 47 7);
+}
+html[data-zone-skin].dark,
+html[data-zone-skin][data-zone-canvas="night"] {
+  --zone-brand: var(--zone-brand-night, #ff6f1a);
+  --zone-brand-rgb: var(--zone-brand-rgb-night, 255 111 26);
+  --zone-shade-rgb: var(--zone-shade-rgb-night, 107 47 11);
+}
+html[data-zone-skin][data-zone-canvas="day"] {
+  --zone-brand: var(--zone-brand-day, #e2560d);
+  --zone-brand-rgb: var(--zone-brand-rgb-day, 226 86 13);
+  --zone-shade-rgb: var(--zone-shade-rgb-day, 124 47 7);
+}
+
+/* ------------------------------------------------------- derived skin tokens */
+
+html[data-zone-skin] {
+  /* surfaces of a physical key: hover is a touch of paper dust, active is the
+     accent pressed into the key, line-soft/line/rule climb from hairline to
+     engraving */
+  --zone-line-soft: color-mix(in srgb, var(--zone-base) 92%, var(--zone-ink));
+  --zone-line-strong: color-mix(in srgb, var(--zone-base) 78%, var(--zone-ink));
+  --zone-rule: color-mix(in srgb, var(--zone-base) 54%, var(--zone-ink));
+  --zone-hover: color-mix(in srgb, var(--zone-layer1) 93%, var(--zone-ink));
+  --zone-active: color-mix(in srgb, var(--zone-layer1) 82%, var(--zone-brand));
+  --zone-code: color-mix(in srgb, var(--zone-base) 95%, var(--zone-ink));
+  --zone-signal: color-mix(in srgb, var(--zone-brand) 70%, var(--zone-ink));
+  --zone-glow: rgb(var(--zone-brand-rgb) / .28);
+  --zone-shade: rgb(var(--zone-shade-rgb));
+
+  /* elevation casts a deep-orange shadow: crisp contact edge, soft falloff,
+     hairline tint ring — the side of a physical key, not light */
+  --zone-shadow-panel: 0 0 0 1px rgb(var(--zone-shade-rgb) / .35),
+    0 2px 6px rgb(var(--zone-shade-rgb) / .4),
+    0 8px 20px rgb(var(--zone-shade-rgb) / .42);
+  --zone-shadow-prominent: 0 0 0 1px rgb(var(--zone-shade-rgb) / .4),
+    0 4px 10px rgb(var(--zone-shade-rgb) / .42),
+    0 16px 36px rgb(var(--zone-shade-rgb) / .46);
+
+  /* backlit composer card and the two self-lit plates: flat glow outward,
+     no rim, no inset — a block lit from behind, not a raised key */
+  --zone-backlight: 0 0 0 1px var(--zone-line),
+    0 0 3.5px rgb(var(--zone-brand-rgb) / .5),
+    0 0 8px rgb(var(--zone-brand-rgb) / .28),
+    0 3px 7px rgb(var(--zone-brand-rgb) / .18);
+  --zone-plate-bloom: 0 0 4px rgb(var(--zone-brand-rgb) / 1),
+    0 0 9px rgb(var(--zone-brand-rgb) / .6);
+  --zone-row-bloom: 0 0 2px rgb(var(--zone-brand-rgb) / .9),
+    0 0 5px rgb(var(--zone-brand-rgb) / .7);
+
+  /* the ZONE faces: DIN-flavoured display for the UI, Cascadia for labels,
+     Noto Sans Mono CJK SC carrying Chinese on the 2:1 mono grid
+     (install once per machine: ../font-lab/install-fonts.ps1) */
+  --font-sans: Bahnschrift, "Segoe UI Variable Text", "Segoe UI",
+    "Noto Sans Mono CJK SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, "Segoe UI Mono",
+    "Noto Sans Mono CJK SC", "Microsoft YaHei", ui-monospace, monospace;
+
+  /* chunky sticker radii, 4-12px */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 11px;
+  --radius-xl: 12px;
+
+  /* backstop: the chassis shows during startup, behind the splash logo */
+  background: var(--zone-base);
+}
+
+/* ------------------------------------------------- semantic token recolour */
+/* ZCode's Tailwind v4 theme resolves every utility through these variables;
+   overriding them on <html> recolours the whole shell. html[data-zone-skin]
+   (0,1,1) outranks the app's .theme-zai-light (0,1,0), and the canvas blocks
+   above (0,2,1) outrank .dark and .theme-zai-dark. */
+
+html[data-zone-skin] {
+  --color-background: var(--zone-base);
+  --color-background-alt: color-mix(in srgb, var(--zone-base) 70%, transparent);
+  --color-background-win-alt: var(--zone-sidebar);
+  --color-header: var(--zone-base);
+  --color-panel: var(--zone-base);
+  --color-sidebar: var(--zone-sidebar);
+
+  --color-foreground: var(--zone-ink);
+  --color-foreground-subtle: color-mix(in srgb, var(--zone-ink) 78%, var(--zone-base));
+  --color-foreground-subtlest: color-mix(in srgb, var(--zone-ink) 55%, var(--zone-base));
+  --color-foreground-inverse: #ffffff;
+
+  --color-brand: var(--zone-brand);
+  --color-primary: var(--zone-brand);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: color-mix(in srgb, var(--zone-layer1) 88%, var(--zone-ink));
+  --color-accent: var(--zone-active);
+  --color-selected: var(--zone-active);
+  --color-hover: var(--zone-hover);
+  --color-ring: var(--zone-brand);
+  --color-resize-handle: var(--zone-brand);
+
+  --color-surface: rgb(255 255 255 / .05);
+  --color-surface-hover: var(--zone-hover);
+  --color-border: var(--zone-line-soft);
+  --color-border-hover: var(--zone-line);
+
+  --color-card: var(--zone-layer1);
+  --color-card-selected: var(--zone-active);
+  --color-card-border: var(--zone-line-soft);
+  --color-popover: var(--zone-layer2);
+  --color-popover-foreground: var(--zone-ink);
+  --color-popover-header: color-mix(in srgb, var(--zone-layer2) 94%, var(--zone-ink));
+  --color-popover-border: var(--zone-line);
+  --color-menu: var(--zone-layer2);
+  --color-menu-hover: var(--zone-hover);
+  --color-input: var(--zone-layer1);
+  --color-input-focused: var(--zone-layer2);
+  --color-input-border: var(--zone-line-soft);
+  --color-input-border-hover: var(--zone-line);
+  --color-input-border-focused: var(--zone-brand);
+  --color-tab: var(--zone-layer1);
+  --color-tab-active: var(--zone-base);
+  --color-tab-border: var(--zone-line-soft);
+  --color-tag: color-mix(in srgb, var(--zone-layer2) 92%, var(--zone-ink));
+  --color-markdown-inline-code: var(--color-tag);
+  --color-tooltip: color-mix(in srgb, var(--zone-base) 68%, #000000);
+  --color-tooltip-foreground: #f8f3e8;
+  --color-tooltip-tag: color-mix(in srgb, var(--zone-base) 55%, #000000);
+  --color-tooltip-tag-foreground: var(--zone-ink-dim);
+  --color-toast: var(--zone-layer2);
+
+  /* status trio takes the skin's functional inks; surfaces keep the
+     translucent formula the app uses */
+  --color-success: #22763f;
+  --color-success-foreground: #ffffff;
+  --color-success-surface: rgb(34 118 63 / .12);
+  --color-success-surface-foreground: #22763f;
+  --color-destructive: #b32d1f;
+  --color-destructive-foreground: #ffffff;
+  --color-destructive-surface: rgb(179 45 31 / .12);
+  --color-destructive-surface-foreground: #b32d1f;
+  --color-warning: #a8770a;
+  --color-warning-foreground: #ffffff;
+  --color-warning-surface: rgb(168 119 10 / .12);
+  --color-warning-surface-foreground: #8a6408;
+  --color-feedback-privacy-hint: #8a6408;
+
+  --color-progress-surface: rgb(var(--zone-brand-rgb) / .16);
+  --color-progress-surface-foreground: var(--zone-brand);
+  --color-interaction-ask-surface: rgb(var(--zone-brand-rgb) / .1);
+  --color-interaction-ask-foreground: var(--zone-signal);
+
+  --color-trajectory-user: var(--zone-brand);
+
+  --color-find-highlight: rgb(var(--zone-brand-rgb) / .22);
+  --color-find-highlight-active: rgb(var(--zone-brand-rgb) / .4);
+
+  --color-workflow-rule: rgb(23 19 16 / .06);
+  --color-workflow-trace: rgb(23 19 16 / .3);
+  --color-workflow-trace-strong: rgb(23 19 16 / .55);
+  --animated-gradient-text-strong: var(--zone-ink);
+  --animated-gradient-text-soft: color-mix(in srgb, var(--zone-ink) 20%, transparent);
+
+  /* hardware-label chart palette: accent, hazard gold, cobalt, ember, ink, teal */
+  --color-usage-chart-1: var(--zone-brand);
+  --color-usage-chart-2: #a8770a;
+  --color-usage-chart-3: #1f5fd6;
+  --color-usage-chart-4: #c62c1b;
+  --color-usage-chart-5: var(--zone-ink);
+  --color-usage-chart-6: #0aa7a7;
+  --color-context-breakdown-1: var(--zone-brand);
+  --color-context-breakdown-2: #e97a45;
+  --color-context-breakdown-3: #f09d7d;
+  --color-context-breakdown-4: #f7c0b5;
+  --color-context-breakdown-5: #fbd6cc;
+  --color-context-breakdown-6: #fdeae5;
+  --color-context-breakdown-7: #fef4f0;
+
+  /* terminal keeps its ANSI hues; the chassis, caret and selection take the skin */
+  --color-terminal-bg: color-mix(in srgb, var(--zone-base) 82%, #171310);
+  --color-terminal-fg: var(--zone-ink);
+  --color-terminal-cursor: var(--zone-brand);
+  --color-terminal-cursor-accent: var(--color-terminal-bg);
+  --color-terminal-selection: rgb(var(--zone-brand-rgb) / .26);
+  --color-terminal-selection-inactive: rgb(var(--zone-brand-rgb) / .12);
+
+  /* "highspeed" mode loses its violet and takes the colorway */
+  --color-highspeed-accent: var(--zone-brand);
+  --color-highspeed-composer-surface: var(--zone-layer1);
+  --color-highspeed-composer-border-idle: var(--zone-brand);
+  --color-highspeed-composer-border-hover: var(--zone-brand);
+  --color-highspeed-glow-01: rgb(var(--zone-brand-rgb) / .01);
+  --color-highspeed-glow-04: rgb(var(--zone-brand-rgb) / .04);
+  --color-highspeed-glow-15: rgb(var(--zone-brand-rgb) / .15);
+  --color-highspeed-glow-26: rgb(var(--zone-brand-rgb) / .26);
+  --color-highspeed-particle: rgb(var(--zone-brand-rgb) / .76);
+  --color-highspeed-particle-highlight: var(--zone-brand);
+  --color-highspeed-particle-highlight-glow: rgb(var(--zone-brand-rgb) / .61);
+  --color-highspeed-model-sweep-highlight: color-mix(in srgb, var(--zone-brand) 35%, #ffffff);
+  --highspeed-sidebar-model-icon: var(--zone-brand);
+  --highspeed-sidebar-model-gradient: linear-gradient(90deg,
+    color-mix(in srgb, var(--zone-brand) 65%, #000000) 0%,
+    var(--zone-brand) 50%,
+    color-mix(in srgb, var(--zone-brand) 65%, #ffffff) 100%);
+}
+
+/* night canvas: the same mapping with the night status inks and light
+   workflow hairlines the app's dark theme already uses */
+html[data-zone-skin].dark,
+html[data-zone-skin][data-zone-canvas="night"] {
+  --color-surface: rgb(255 255 255 / .05);
+  --color-workflow-rule: rgb(255 255 255 / .07);
+  --color-workflow-trace: rgb(255 255 255 / .35);
+  --color-workflow-trace-strong: rgb(255 255 255 / .6);
+  --color-terminal-bg: color-mix(in srgb, var(--zone-base) 65%, #000000);
+  --color-success: #4fdc8c;
+  --color-success-foreground: #14110d;
+  --color-success-surface: rgb(79 220 140 / .14);
+  --color-success-surface-foreground: #4fdc8c;
+  --color-destructive: #ff5a45;
+  --color-destructive-surface: rgb(255 90 69 / .16);
+  --color-destructive-surface-foreground: #ff5a45;
+  --color-warning: #ffc61a;
+  --color-warning-foreground: #14110d;
+  --color-warning-surface: rgb(255 198 26 / .16);
+  --color-warning-surface-foreground: #ffc61a;
+  --color-feedback-privacy-hint: #ffc61a;
+  --color-usage-chart-2: #ffc61a;
+  --color-usage-chart-3: #4d94ff;
+  --color-usage-chart-4: #ff4632;
+  --color-usage-chart-5: #efe9db;
+  --color-usage-chart-6: #42c8c8;
+  --color-context-breakdown-2: #ff8f4d;
+  --color-context-breakdown-3: #ffaf80;
+  --color-context-breakdown-4: #ffcfb3;
+  --color-context-breakdown-5: #f8e0d0;
+  --color-context-breakdown-6: #fdf0e8;
+  --color-context-breakdown-7: #fdf7f3;
+}
+
+/* a forced day canvas maps the night-side entries too, so the app cannot
+   split the skin by switching themes under it */
+html[data-zone-skin][data-zone-canvas="day"] {
+  --color-surface: rgb(23 19 16 / .04);
+}
+
+/* --------------------------------------------------------- stylesheet layer */
+
+/* Ink on the accent is white everywhere, matching the lit plates; host
+   surfaces ship their own selection colours, so the pin carries !important
+   (a derived value loses that fight silently — see NOTES.md). */
+html[data-zone-skin] ::selection {
+  background: var(--zone-brand) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+/* The user message plate IS the colorway accent (same fill a selected row
+   takes in the DSH original). Scoped --color-* overrides turn every
+   text-foreground utility inside it white without touching the owner's
+   rules; the inverted selection keeps text visible on the fill. */
+html[data-zone-skin] [data-v4-user-input-collapsible-content],
+html[data-zone-skin] [data-trajectory-user-content-card] {
+  background: var(--zone-brand);
+  border-radius: 10px;
+  padding: 7px 12px;
+  margin-block: 2px;
+  box-shadow: var(--zone-plate-bloom);
+  --color-foreground: #ffffff;
+  --color-foreground-subtle: rgb(255 255 255 / .78);
+  --color-foreground-subtlest: rgb(255 255 255 / .6);
+}
+html[data-zone-skin] [data-v4-user-input-collapsible-content] ::selection,
+html[data-zone-skin] [data-v4-user-input-collapsible-content]::selection,
+html[data-zone-skin] [data-trajectory-user-content-card] ::selection,
+html[data-zone-skin] [data-trajectory-user-content-card]::selection {
+  background: #ffffff !important;
+  color: #171310 !important;
+  -webkit-text-fill-color: #171310 !important;
+}
+
+/* Backlit composer card: the shadcn input-group that hosts the chat input.
+   Neutral hairline plus a restrained bloom — lit, not raised. */
+html[data-zone-skin] [data-slot="input-group"]:has([data-testid="chat-input"]) {
+  box-shadow: var(--zone-backlight);
+}
+
+/* Code blocks take the colorway rule, like .md-code-block in the original. */
+html[data-zone-skin] [data-streamdown="code-block"] {
+  border-left: 3px solid var(--zone-brand);
+}
+
+/* Cursor set: the skin's own 24px SVG glyphs, written as --zone-cursor*
+   variables by zone-boot.js so they follow the active colorway and canvas.
+   wait/progress/help/crosshair/grabbing/move stay native (CSS cursor images
+   cannot animate); the window chrome stays native. */
+html[data-zone-skin] { cursor: var(--zone-cursor, auto); }
+html[data-zone-skin] textarea:not(:disabled),
+html[data-zone-skin] input:not(:disabled):not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+html[data-zone-skin] [contenteditable]:not([contenteditable="false"]) {
+  cursor: var(--zone-cursor-text, text) !important;
+}
+html[data-zone-skin] :is(a[href], button, [role="button"], summary,
+  [data-slot="select-trigger"], [data-slot="tabs-trigger"],
+  [data-slot="switch"], [data-slot="checkbox"], label:is(:has(input), :has([data-slot="switch"]))) {
+  cursor: var(--zone-cursor-pointer, pointer) !important;
+}
+html[data-zone-skin] :is(button:disabled, [aria-disabled="true"], [data-disabled]) {
+  cursor: var(--zone-cursor-not-allowed, not-allowed) !important;
+}
+
+/* --------------------------------------------------------- skin chrome */
+/* Everything below styles DOM that zone-boot.js injects outside #root, so
+   React never rewrites it: the atmosphere (cast, halftone, lens, brackets),
+   the console chip + panel, the sticker and the device bar. */
+
+html[data-zone-skin] .zone-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  pointer-events: none;
+  overflow: hidden;
+}
+/* The sidebar stands over the sheet: a 30px cast shadow along the left seam,
+   peak alpha .1, neutral on graphite and warm on cream (same strength). */
+html[data-zone-skin] .zone-cast {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  width: 30px;
+  background-image: linear-gradient(to right,
+    rgb(var(--zone-cast-ink) / .1) 0,
+    rgb(var(--zone-cast-ink) / .082) 1.5px,
+    rgb(var(--zone-cast-ink) / .062) 4.5px,
+    rgb(var(--zone-cast-ink) / .041) 10px,
+    rgb(var(--zone-cast-ink) / .02) 18px,
+    rgb(var(--zone-cast-ink) / 0) 30px);
+}
+/* 7px halftone screen: paper grain over the chassis, fading mid-sheet. */
+html[data-zone-skin] .zone-halftone {
+  position: absolute; inset: 0; opacity: .6;
+  background-image: radial-gradient(circle at 1px 1px,
+    color-mix(in srgb, var(--zone-ink) 8%, transparent) 1px, transparent 0);
+  background-size: 7px 7px;
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0) 46%, rgba(0,0,0,.4));
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0) 46%, rgba(0,0,0,.4));
+}
+/* Pointer lens over the halftone: bigger SQUARE dots in the accent, masked to
+   a soft circle. A bright head eases toward the cursor, a wider fainter tail
+   trails behind — a short comet that settles when the pointer stops. */
+html[data-zone-skin] .zone-lens {
+  position: absolute; inset: 0;
+  background-color: rgb(var(--zone-brand-rgb) / var(--lens-alpha, 60%));
+  -webkit-mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7'%3E%3Crect x='1.5' y='1.5' width='4' height='4'/%3E%3C/svg%3E"),
+    radial-gradient(circle var(--lens-size, 100px) at var(--lens-x, -400px) var(--lens-y, -400px),
+      #000 0%, rgba(0,0,0,.55) 46%, transparent 100%);
+  -webkit-mask-size: 7px 7px, 100% 100%;
+  -webkit-mask-repeat: repeat, no-repeat;
+  -webkit-mask-composite: source-in;
+  mask-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='7' height='7'%3E%3Crect x='1.5' y='1.5' width='4' height='4'/%3E%3C/svg%3E"),
+    radial-gradient(circle var(--lens-size, 100px) at var(--lens-x, -400px) var(--lens-y, -400px),
+      #000 0%, rgba(0,0,0,.55) 46%, transparent 100%);
+  mask-size: 7px 7px, 100% 100%;
+  mask-repeat: repeat, no-repeat;
+  mask-composite: intersect;
+  transition: opacity .3s ease;
+}
+html[data-zone-skin] .zone-halftone-hot {
+  --lens-alpha: 10%; --lens-size: 100px;
+  --lens-x: var(--zone-pointer-x, -400px); --lens-y: var(--zone-pointer-y, -400px);
+}
+html[data-zone-skin] .zone-halftone-tail {
+  --lens-alpha: 6%; --lens-size: 150px;
+  --lens-x: var(--zone-tail-x, -400px); --lens-y: var(--zone-tail-y, -400px);
+}
+html[data-zone-skin] .zone-atmosphere[data-zone-lens="off"] .zone-lens { opacity: 0; }
+html[data-zone-skin][data-zone-dots="off"] .zone-halftone,
+html[data-zone-skin][data-zone-dots="off"] .zone-lens { display: none; }
+
+/* Four taped corner brackets; the top pair hangs under the app's titlebar at
+   --zone-content-top (measured by zone-boot.js from the chat view). */
+html[data-zone-skin] .zone-tick {
+  position: absolute; width: 16px; height: 16px;
+  border: 0 solid rgb(var(--zone-brand-rgb) / .48);
+}
+html[data-zone-skin] .zone-tick-tl { top: calc(var(--zone-content-top, 0px) + 9px); left: 9px; border-top-width: 2px; border-left-width: 2px; border-radius: 3px 0 0 0; }
+html[data-zone-skin] .zone-tick-tr { top: calc(var(--zone-content-top, 0px) + 9px); right: 9px; border-top-width: 2px; border-right-width: 2px; border-radius: 0 3px 0 0; }
+html[data-zone-skin] .zone-tick-bl { bottom: 9px; left: 9px; border-bottom-width: 2px; border-left-width: 2px; border-radius: 0 0 0 3px; }
+html[data-zone-skin] .zone-tick-br { bottom: 9px; right: 9px; border-bottom-width: 2px; border-right-width: 2px; border-radius: 0 0 3px 0; }
+
+@keyframes zone-tick-in { from { opacity: 0; transform: scale(.7); } to { opacity: 1; transform: none; } }
+html[data-zone-skin] .zone-atmosphere[data-zone-intro] .zone-tick { animation: zone-tick-in .45s ease-out both; }
+html[data-zone-skin] .zone-atmosphere[data-zone-intro] .zone-tick-tr { animation-delay: .05s; }
+html[data-zone-skin] .zone-atmosphere[data-zone-intro] .zone-tick-br { animation-delay: .1s; }
+html[data-zone-skin] .zone-atmosphere[data-zone-intro] .zone-tick-bl { animation-delay: .15s; }
+
+/* Console chip (collapsed) and panel (expanded), docked bottom-left outside
+   #root. Collapsing to a chip keeps the sidebar foot free; Ctrl+Alt+H hides
+   the console entirely without touching the skin. */
+html[data-zone-skin] .zone-console {
+  position: fixed; left: 10px; bottom: 10px; z-index: 2147483646;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  font-family: var(--font-mono);
+}
+html[data-zone-skin] .zone-console[hidden] { display: none; }
+html[data-zone-skin] .zone-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 8px; border-radius: 6px; min-width: 0;
+  border: 1px solid var(--zone-line);
+  background: color-mix(in srgb, var(--zone-ink) 6%, transparent);
+  color: var(--zone-ink); font: 9px/1 var(--font-mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  cursor: pointer; transition: border-color .16s ease;
+}
+html[data-zone-skin] .zone-chip:hover { border-color: var(--zone-brand); }
+html[data-zone-skin] .zone-chip:focus-visible,
+html[data-zone-skin] .zone-key:focus-visible,
+html[data-zone-skin] .zone-btn:focus-visible,
+html[data-zone-skin] .zone-switch:focus-visible { outline: 2px solid var(--zone-brand); outline-offset: 2px; }
+html[data-zone-skin] .zone-dot {
+  width: 9px; height: 9px; border-radius: 3px;
+  background: var(--zone-swatch, var(--zone-brand)); flex: none;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / .35);
+}
+html[data-zone-skin] .zone-panel {
+  width: 264px; padding: 12px; border-radius: 12px;
+  background: var(--zone-layer1);
+  border: 1px solid var(--zone-line);
+  box-shadow: var(--zone-shadow-panel);
+  color: var(--zone-ink);
+}
+html[data-zone-skin] .zone-panel[hidden] { display: none; }
+html[data-zone-skin] .zone-rows { display: grid; gap: 8px; padding: 10px 0 4px; }
+html[data-zone-skin] .zone-field { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+html[data-zone-skin] .zone-field-label {
+  min-width: 62px; font: 9px/1 var(--font-mono); letter-spacing: .16em;
+  text-transform: uppercase; color: var(--zone-ink-dim);
+}
+html[data-zone-skin] .zone-row { display: flex; gap: 6px; flex-wrap: wrap; }
+html[data-zone-skin] .zone-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--zone-line); background: transparent; color: var(--zone-ink);
+  font: 10px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
+  transition: transform .12s ease, background .16s ease, border-color .16s ease, color .16s ease;
+}
+html[data-zone-skin] .zone-btn:hover { border-color: var(--zone-brand); color: var(--zone-brand); transform: translateY(-1px); }
+html[data-zone-skin] .zone-btn[aria-pressed="true"] {
+  background: var(--zone-brand); border-color: var(--zone-brand); color: var(--zone-brand-on);
+  box-shadow: 0 0 20px rgb(var(--zone-brand-rgb) / .48);
+}
+html[data-zone-skin] .zone-btn[aria-pressed="true"] ::selection,
+html[data-zone-skin] .zone-btn[aria-pressed="true"]::selection {
+  background: #ffffff !important; color: #171310 !important; -webkit-text-fill-color: #171310 !important;
+}
+html[data-zone-skin] .zone-switch {
+  display: inline-flex; align-items: center; gap: 9px; padding: 4px 9px 4px 7px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--zone-line); background: transparent; color: var(--zone-ink);
+  font: 10px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase;
+}
+html[data-zone-skin] .zone-switch:hover { border-color: var(--zone-brand); }
+html[data-zone-skin] .zone-toggle-track {
+  position: relative; width: 32px; height: 18px; border-radius: 9px;
+  border: 1px solid var(--zone-line); background: color-mix(in srgb, var(--zone-ink) 6%, transparent);
+}
+html[data-zone-skin] .zone-toggle-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--zone-ink-dim); transition: transform .16s ease, background .16s ease;
+}
+html[data-zone-skin] .zone-switch[aria-checked="true"] { border-color: var(--zone-brand); }
+html[data-zone-skin] .zone-switch[aria-checked="true"] .zone-toggle-track {
+  border-color: var(--zone-brand); background: rgb(var(--zone-brand-rgb) / .24);
+}
+html[data-zone-skin] .zone-switch[aria-checked="true"] .zone-toggle-track::after {
+  transform: translateX(14px); background: var(--zone-brand);
+}
+
+/* Cream sticker card: the pop of paper among the graphite. */
+html[data-zone-skin] .zone-sticker {
+  display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 10px;
+  border: 2px solid var(--zone-graphite); background: var(--zone-cream); color: var(--zone-graphite);
+  box-shadow: 0 5px 0 rgb(var(--zone-shade-rgb) / .55),
+              0 18px 34px rgb(var(--zone-shade-rgb) / .38);
+}
+html[data-zone-skin] .zone-sticker-mark {
+  font: 800 19px/1 Bahnschrift, "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-stretch: 90%; letter-spacing: -.01em; text-transform: uppercase;
+}
+html[data-zone-skin] .zone-sticker-tape {
+  flex: 1 1 auto; min-width: 18px; height: 9px; border-radius: 2px; opacity: .82;
+  background: repeating-linear-gradient(115deg, var(--zone-graphite) 0 6px, transparent 6px 12px);
+}
+html[data-zone-skin] .zone-sticker-chips { display: flex; gap: 4px; }
+html[data-zone-skin] .zone-sticker-chip {
+  width: 12px; height: 12px; border-radius: 3px; background: var(--zone-swatch);
+  border: 1px solid var(--zone-graphite);
+}
+html[data-zone-skin] .zone-sticker-code {
+  font: 9px/1 var(--font-mono); letter-spacing: .2em; text-transform: uppercase;
+  opacity: .7; white-space: nowrap;
+}
+
+/* Device bar under the panel fields: pulsing LED, hazard-tape rule, the
+   active colorway number and the current sheet (window title) id. */
+html[data-zone-skin] .zone-bar {
+  display: flex; align-items: center; gap: 10px; padding: 10px 2px 0;
+  border-top: 1px solid var(--zone-line-soft); margin-top: 6px;
+  font: 9px/1 var(--font-mono); letter-spacing: .18em; text-transform: uppercase;
+  color: var(--zone-ink-dim); user-select: none;
+}
+html[data-zone-skin] .zone-live { display: inline-flex; align-items: center; gap: 6px; color: var(--zone-ink); }
+html[data-zone-skin] .zone-led {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--zone-brand); box-shadow: 0 0 9px var(--zone-brand);
+}
+@keyframes zone-led { 0%, 100% { opacity: 1; } 50% { opacity: .32; } }
+html[data-zone-skin] .zone-tape {
+  flex: 1 1 auto; min-width: 18px; height: 6px; border-radius: 2px; opacity: .85;
+  background: repeating-linear-gradient(115deg, var(--zone-brand) 0 7px, transparent 7px 15px);
+}
+html[data-zone-skin] .zone-id { color: var(--zone-brand); }
+html[data-zone-skin] .zone-sheet { color: var(--zone-ink); letter-spacing: .12em; overflow: hidden; max-width: 92px; text-overflow: ellipsis; white-space: nowrap; }
+
+html[data-zone-skin] .zone-visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* --------------------------------------------------------------- motion */
+
+html[data-zone-skin] .zone-led { animation: zone-led 2.8s ease-in-out infinite; }
+html[data-zone-skin][data-zone-motion="quiet"] .zone-led { animation-duration: 4s; }
+html[data-zone-skin][data-zone-motion="quiet"] .zone-tick { animation-duration: .2s; }
+html[data-zone-skin][data-zone-motion="off"] .zone-led,
+html[data-zone-skin][data-zone-motion="off"] .zone-tick { animation: none !important; }
+html[data-zone-skin][data-zone-motion="off"] .zone-lens { transition: none; }
+html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  html[data-zone-skin] .zone-led,
+  html[data-zone-skin] .zone-tick { animation: none !important; }
+  html[data-zone-skin] .zone-btn,
+  html[data-zone-skin] .zone-toggle-track::after,
+  html[data-zone-skin] .zone-lens { transition: none; }
+  html[data-zone-skin] .zone-btn:hover { transform: none; }
+}
