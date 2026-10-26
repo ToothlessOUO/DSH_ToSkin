@@ -53,6 +53,18 @@ die-cut sticker graphics and warm LED glow.
   `--plan-card-fill`) or the light `--dsw-alias-button-elevated-fill` are bound
   to the skin surfaces, so the canvas stays coherent even when the app's own
   theme is light.
+- **The inverted label follows the canvas, not the app** - the host titles every
+  plate it fills with `--dsw-alias-label-primary` (the wordmark's `HARNESS`
+  badge, the sidebar build-version pill) and with
+  `--dsw-alias-button-contrast-fill` (the attachment remove key) using
+  `--dsw-alias-label-primary-inverted`, and that token is published from the
+  app's own light/dark mode: `#ffffff` in the light theme, `#353638` in the dark
+  one. A forced night canvas running over a light-mode app therefore inherited
+  the white label on a cream plate - white on cream, 1.11:1, so the `HARNESS`
+  badge read as a blank pill. The token layer now binds the pair to the chassis:
+  `label-primary-inverted` takes the opposite canvas ink (`#171310` on night,
+  `#f8f3e8` on day) and `button-contrast-fill` takes the label ink, so the plate
+  reads like the app's own dark theme on either canvas.
 - **Atmosphere** 鈥?a fixed layer adds a 7px halftone screen and four taped
   corner brackets; the corners fade in once on load. The two top brackets hang at
   the top of the chat scroller 鈥?under the title row and the tab strip 鈥?not on

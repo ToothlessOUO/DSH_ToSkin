@@ -131,6 +131,31 @@ Two things worth remembering from the debugging session:
   lit-plate look on a given surface, deepen the plate with the existing `BUBBLE`
   orange (`#d2450f`) — that constant exists precisely for white ink.
 
+## The inverted label belongs to the app, not to the canvas
+
+`--dsw-alias-label-primary-inverted` is not a free colour: the host titles every
+plate it fills with `--dsw-alias-label-primary` (the wordmark's `HARNESS` badge,
+the sidebar build-version pill) and with `--dsw-alias-button-contrast-fill` (the
+attachment remove key) using it. The host defines it per *its own* theme:
+`#ffffff` in the light theme, `#353638` in the dark one.
+
+The skin overrode the plate and left the ink alone. On a machine where the skin
+forces the **night** canvas while Windows — and so the app's `ui-theme` preference
+`system` — runs in **light** mode, the plate became the cream ink while the
+letters stayed `#ffffff`: 1.11:1, so the badge read as a blank cream pill. A
+machine whose app is genuinely dark got `#353638` letters and looked correct,
+which is why it failed on one box only.
+
+Measured, not guessed: sample the badge in a screenshot. Plate `#f8f3e8` (the
+skin's night ink) plus letters `#ffffff` (the app's light-theme inverted label)
+proves the two modes disagree on the same element.
+
+The fix binds both tokens of the pair to the chassis (`invertInk` in `schemeFor`):
+`label-primary-inverted` becomes the opposite canvas ink, `button-contrast-fill`
+becomes the label ink. Rebinding the ink alone would have regressed the
+attachment's remove key, whose fill still came from the app's light theme
+(`#61666b`) — pair them exactly as the host's own dark theme does.
+
 ## Two facts that cost the most time
 
 Both were measured, not reasoned about, and both would have saved a long detour:

@@ -290,6 +290,13 @@ window.__ModuleLoader__.load({
         bubble,
         bubbleInk,
         bubbleHighlight: mix(bubble, '#000000', 0.24),
+        /* The host's "inverted label" is the ink for a plate filled with
+           --dsw-alias-label-primary (the wordmark's HARNESS badge, the sidebar
+           build-version pill). It flips with the app's own light/dark mode, not
+           with the skin's canvas, so a forced night canvas over a light-mode app
+           titled the cream plate in white. Derive it from the opposite canvas
+           ink instead: near-black on the night canvas, cream on the day one. */
+        invertInk: night ? CHASSIS.day.ink : CHASSIS.night.ink,
         mask: night ? 'rgba(38, 32, 29, 0.62)' : 'rgba(58, 45, 31, 0.44)',
         /* Elevation casts a deep-orange shadow: a crisp contact layer, a soft
            falloff, and a hairline of the same tint. No glow, no plate. */
@@ -358,6 +365,17 @@ window.__ModuleLoader__.load({
       set('--dsw-alias-interactive-bg-hover-danger', (s) => mix(s.layer1, s.error, 0.14));
       set('--dsw-alias-label-primary', (s) => s.ink);
       set('--dsw-alias-label-primary-foreground', (s) => s.brandOn);
+      /* The inverted-label pair. Host surfaces that fill a plate with
+         --dsw-alias-label-primary (the wordmark's HARNESS badge, the sidebar
+         build-version pill) or with --dsw-alias-button-contrast-fill (the
+         attachment remove key) title it with --dsw-alias-label-primary-inverted,
+         and both tokens come from the app's own light/dark mode. The light theme
+         pairs a near-white inverted label with a white label plate, which is what
+         a forced night canvas over a light-mode app inherited: white letters on
+         the cream HARNESS plate. Bind the pair to the chassis so the plate reads
+         like the app's own dark theme on every canvas. */
+      set('--dsw-alias-label-primary-inverted', (s) => s.invertInk);
+      set('--dsw-alias-button-contrast-fill', (s) => s.ink);
       set('--dsw-alias-label-secondary', (s) => mix(s.ink, s.base, 0.22));
       set('--dsw-alias-label-tertiary', (s) => s.inkDim);
       set('--dsw-alias-label-caption', (s) => s.inkDim);

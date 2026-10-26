@@ -77,6 +77,11 @@ for (const colorway of COLORWAYS) {
       ['label-primary on bg-layer-2', at('--dsw-alias-label-primary'), at('--dsw-alias-bg-layer-2'), 7],
       ['label-primary on menu surface', at('--dsw-alias-label-primary'), at('--dsw-alias-menu-surface-fill'), 7],
       ['primary button text', at('--dsw-alias-label-primary-foreground'), at('--dsw-alias-button-primary-fill'), 4.5],
+      /* The inverted-label pair: the HARNESS badge and the build-version pill fill
+         with label-primary, the attachment remove key with button-contrast-fill,
+         and all three title themselves with label-primary-inverted. */
+      ['inverted label on label plate', at('--dsw-alias-label-primary-inverted'), at('--dsw-alias-label-primary'), 4.5],
+      ['inverted label on contrast fill', at('--dsw-alias-label-primary-inverted'), at('--dsw-alias-button-contrast-fill'), 4.5],
       ['toast text', at('--dsw-alias-toast-label'), at('--dsw-alias-toast-bg'), 4.5],
       /* The chat plate always carries white ink (the owner's choice), so its pair
          is not scored here; the block below pins the fill/ink relationship. */
