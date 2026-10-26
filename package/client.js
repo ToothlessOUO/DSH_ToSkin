@@ -615,13 +615,19 @@ html[data-zone-skin] body {
   --zone-graphite: #141110;
   --zone-glow: color-mix(in srgb, var(--zone-brand) 28%, transparent);
   --zone-shade: color-mix(in srgb, var(--zone-brand) 40%, #000000);
-  /* The cast shadow the sidebar throws across the sheet. Its ink is neutral on the
-     graphite chassis and warm on the cream one; the alpha curve is shared (see
-     .zone-cast), so both canvases carry the same strength. */
-  --zone-cast-ink: 0 0 0;
-}
-html[data-zone-skin][data-zone-canvas="day"] body {
-  --zone-cast-ink: 56 44 32;
+  /* The seam edges share one curve: the sidebar's falls to the right and the
+     titlebar's falls downward, both over 7.5px from a 0.2 peak. The tint is a cool
+     black right now, so the seam reads as a cold divider with a slight blue cast;
+     use var(--zone-brand) for the colorway accent, '#fff' for a lit edge, or
+     '#000' for a neutral cast. */
+  --zone-cast-tint: #0d1117;
+  --zone-cast-fade:
+    color-mix(in srgb, var(--zone-cast-tint) 20%, transparent) 0,
+    color-mix(in srgb, var(--zone-cast-tint) 16.4%, transparent) .375px,
+    color-mix(in srgb, var(--zone-cast-tint) 12.4%, transparent) 1.125px,
+    color-mix(in srgb, var(--zone-cast-tint) 8.2%, transparent) 2.5px,
+    color-mix(in srgb, var(--zone-cast-tint) 4%, transparent) 4.5px,
+    transparent 7.5px;
 }
 /* The cursor set is the skin's own: a graphite arrow with a colorway outline,
    plus matching text/hand/forbidden/resize/zoom glyphs. Every value lives in a
@@ -703,28 +709,42 @@ html[data-zone-skin] .zone-halftone {
   -webkit-mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0) 46%, rgba(0,0,0,.4));
   mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0) 46%, rgba(0,0,0,.4));
 }
-/* The sidebar stands over the sheet: a cast shadow along the seam that falls from
-   the panel's left edge into the panel over 30px, peaking at 0.1. It is a child of
-   the atmosphere, so it inherits the measured panel rect and the rounded top-left
-   clip, and it is painted before the halftone and the corner brackets, which keeps
-   the dots and the marks lit on top of the shadow instead of being dimmed by it. A
-   collapsed sidebar (the rail) has nothing raised to cast it, so the frame's
-   data-sidebar-collapsed attribute drops the band; the fade keeps the toggle from
-   flicking. */
+/* The sidebar stands over the sheet: a seam edge along the panel's left edge that
+   falls into the panel over 7.5px, peaking at 0.2. It is a child of the atmosphere,
+   so it inherits the measured panel rect and the rounded top-left clip, and it is
+   painted before the halftone and the corner brackets, which keeps the dots and the
+   marks above the gradient instead of being dimmed by it. A collapsed sidebar (the
+   rail) has nothing raised to draw it, so the frame's data-sidebar-collapsed
+   attribute drops the band; the fade keeps the toggle from flicking. */
 html[data-zone-skin] .zone-cast {
   position: absolute; left: 0; top: 0; bottom: 0;
-  width: 30px;
+  width: 7.5px;
   pointer-events: none;
-  background-image: linear-gradient(to right,
-    rgb(var(--zone-cast-ink) / .1) 0,
-    rgb(var(--zone-cast-ink) / .082) 1.5px,
-    rgb(var(--zone-cast-ink) / .062) 4.5px,
-    rgb(var(--zone-cast-ink) / .041) 10px,
-    rgb(var(--zone-cast-ink) / .02) 18px,
-    rgb(var(--zone-cast-ink) / 0) 30px);
+  background-image: linear-gradient(to right, var(--zone-cast-fade));
   transition: opacity .22s ease;
 }
 html[data-zone-skin] [data-sidebar-collapsed] .zone-cast { opacity: 0; }
+/* The titlebar is the sheet's other raised edge: the same curve falling downward
+   onto the sheet's top edge. Its left end is crossfaded out over the sidebar edge's
+   7.5px band, so the corner hands over from one edge to the other and never adds the
+   two together; the panel is also clipped at its left edge, so none of this reaches
+   the sidebar. Unlike the left band it stays when the rail is in — the titlebar does
+   not collapse. */
+html[data-zone-skin] .zone-cast-top {
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 7.5px;
+  pointer-events: none;
+  background-image: linear-gradient(to bottom, var(--zone-cast-fade));
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 7.5px);
+  mask-image: linear-gradient(to right, transparent 0, #000 7.5px);
+}
+/* With the rail in, the left band is gone, so the crossfade has nothing to hand
+   over to and would leave the top-left 7.5px unlit. The top edge then runs at full
+   strength from the panel's left corner. */
+html[data-zone-skin] [data-sidebar-collapsed] .zone-cast-top {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
 /* Pointer lens over the halftone: the same 7px grid, but bigger SQUARE dots in
    the colorway accent, masked to a soft circle under the cursor. The squares are
    a tiled SVG mask (a 4px rect in a 7px cell) intersected with the pointer
@@ -1431,6 +1451,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           'aria-hidden': 'true',
         },
         h('div', { className: 'zone-cast' }),
+        h('div', { className: 'zone-cast-top' }),
         h('div', { className: 'zone-halftone' }),
         h('div', { className: 'zone-halftone-tail zone-lens' }),
         h('div', { className: 'zone-halftone-hot zone-lens' }),

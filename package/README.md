@@ -59,13 +59,17 @@ die-cut sticker graphics and warm LED glow.
   the panel's own edge, and that inset is measured at runtime, so the brackets
   follow the header instead of being cut by it. The sheet itself carries no
   colour wash, so the conversation panel stays the plain chassis colour. Along the
-  sheet's left edge a 30px cast shadow (peak alpha 0.1) makes the sidebar read as
-  raised above the panel; it is clipped by the panel's rounded top-left corner, sits
-  under the halftone and the corner brackets, and drops out when the sidebar
-  collapses to its rail. Over the chat area a pointer lens lights the same grid with
-  square dots in the colorway accent: a bright head (100px) eases toward the cursor
-  and a wider, fainter tail (132px) trails behind and settles back, so moving leaves
-  a short comet. The
+  sheet's left edge a 7.5px edge gradient (peak alpha 0.2) tinted cool black reads
+  as a cold seam between the sidebar and the panel; it is clipped by the panel's
+  rounded top-left corner, sits under the halftone and the corner brackets, and
+  drops out when the sidebar collapses to its rail. The titlebar draws the same
+  7.5px curve down onto the sheet's top edge; its left end crossfades over the sidebar
+  band so the two edges never stack, and it stays when the rail is in. Set
+  `--zone-cast-tint` to `var(--zone-brand)` for the colorway accent, `#fff` for a
+  white edge, or `#000` for a neutral cast.
+  Over the chat area a pointer lens lights the same grid with square dots in the
+  colorway accent: a bright head (100px) eases toward the cursor and a wider, fainter
+  tail (132px) trails behind and settles back, so moving leaves a short comet. The
   lens fades out over the composer card and device bar and when the pointer
   leaves the chat, and motion `off` disables it.
 - **Sidebar foot console** 鈥?a colorway dropdown (swatch + name) built on the

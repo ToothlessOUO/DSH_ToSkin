@@ -150,17 +150,25 @@ to the renderer anyway (the CSS only names a family).
 
 ## Current state (carry this forward)
 
-- **The sidebar cast shadow lives inside the atmosphere.** `.zone-cast` is the first
-  child of `.zone-atmosphere`: a 30px `to right` gradient (peak alpha 0.1) clipped by
+- **The seam edges live inside the atmosphere.** `.zone-cast` and `.zone-cast-top`
+  are the first children of `.zone-atmosphere`, sharing one `--zone-cast-fade` curve
+  from the alias block (7.5px, 0.2 peak, both canvases). The left band is clipped by
   the panel's top-left corner and painted before the halftone and the corner
-  brackets, so the dots and marks stay lit on the shadow. It drops out through
+  brackets, so the dots and marks stay above the gradient; it drops out through
   `html[data-zone-skin] [data-sidebar-collapsed] .zone-cast` (the frame attribute the
-  layout publishes while the rail is in) and fades for .22s. The only colour knob is
-  `--zone-cast-ink` from the alias block: neutral black on the graphite chassis, warm
-  brown on the cream one, same strength on both. It is CSS-only — not in `tokensFor`,
-  so the token test does not see it. The atmosphere's `border-radius` is **top-left
-  only** on purpose: the host panel has one rounded corner, and an all-corner radius
-  cut a 16px notch out of the cast shadow at the window's bottom-left.
+  layout publishes while the rail is in) and fades for .22s. The top band runs the
+  same curve downward from the titlebar, masked across the left 7.5px so the corner
+  hands over from one edge to the other instead of stacking; with the rail in, that
+  mask is removed (`[data-sidebar-collapsed] .zone-cast-top`) because there is no
+  left band to hand over to, and the top band itself stays. The tint is
+  `--zone-cast-tint`, **currently the cool black `#0d1117`**: the owner asked for a
+  cold divider (the fade stops are `color-mix` alphas so any solid colour works).
+  `var(--zone-brand)` gives the colorway accent, `#fff` the white lit edge, `#000`
+  a neutral cast. The tint and curve are CSS-only — not in `tokensFor`, so the token
+  test does not see them.
+  The atmosphere's `border-radius` is **top-left only** on purpose: the host panel has
+  one rounded corner, and an all-corner radius cut a 16px notch out of the edge band
+  at the window's bottom-left.
 - **Atmosphere anchoring is implemented but unverified on the author's machine.** The
   layer is a `shell.overlay` div positioned from `--zone-panel-*`, measured at runtime
   by `ZoneAtmosphere`. Expected after a restart with a 1280×822 viewport:
