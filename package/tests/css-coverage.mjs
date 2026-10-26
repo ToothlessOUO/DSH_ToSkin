@@ -3,10 +3,14 @@ import fs from 'node:fs';
 
 const here = new URL('.', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
 const src = fs.readFileSync(here + '/../client.js', 'utf8');
-const start = src.indexOf('const CSS = `') + 13;
-const end = src.indexOf('`;\n\n    /* ------------------------------------------------------------- components');
-if (start < 13 || end < 0) throw new Error('stylesheet block not found');
-const css = src.slice(start, end);
+const startMarker = 'const CSS = `';
+const start = src.indexOf(startMarker) + startMarker.length;
+// Close on the line that holds only the terminating backtick, so a renamed or
+// re-spaced section comment below the stylesheet cannot break this check.
+const rest = src.slice(start);
+const closeAt = rest.search(/^`;[ \t]*$/m);
+if (start < startMarker.length || closeAt < 0) throw new Error('stylesheet block not found');
+const css = rest.slice(0, closeAt);
 
 const names = new Set();
 for (const match of src.matchAll(/className: '([^']+)'/g)) {
