@@ -767,10 +767,10 @@ html[data-zone-skin] [data-sidebar-collapsed] .zone-cast-top {
    the colorway accent, masked to a soft circle under the cursor. The squares are
    a tiled SVG mask (a 4px rect in a 7px cell) intersected with the pointer
    circle, so the colour stays one background-color that follows --zone-brand.
-   Two layers share the recipe: a bright head that eases quickly toward the
-   cursor, and a wider, fainter tail that eases much more slowly, which reads as
-   a short trail that settles back when the pointer stops. Positions come from
-   --zone-pointer-* and --zone-tail-*, written by ZoneAtmosphere. */
+   The head takes its position straight from the pointer event — no follower
+   easing — so the lit dots are always under the mouse; the wake behind it is the
+   canvas below. Position comes from --zone-pointer-*, written by
+   ZoneAtmosphere. */
 html[data-zone-skin] .zone-lens {
   position: absolute; inset: 0; pointer-events: none;
   background-color: color-mix(in srgb, var(--zone-brand) var(--lens-alpha, 60%), transparent);
@@ -796,17 +796,21 @@ html[data-zone-skin] .zone-halftone-hot {
   --lens-x: var(--zone-pointer-x, -400px);
   --lens-y: var(--zone-pointer-y, -400px);
 }
-html[data-zone-skin] .zone-halftone-tail {
-  --lens-alpha: 6%;
-  --lens-size: 150px;
-  --lens-x: var(--zone-tail-x, -400px);
-  --lens-y: var(--zone-tail-y, -400px);
+/* The wake: a canvas drawing the same 4px squares on the same 7px grid, stamped
+   wherever the pointer crosses a cell and faded a little every frame. A sweep
+   keeps drawing for as long as it moves and then dissolves over several seconds,
+   so the trail is a real, ageing line of dots instead of a second, larger circle
+   easing along behind the head. */
+html[data-zone-skin] .zone-trail {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none;
 }
-/* Leaving the chat area fades the lens out where it stands; re-entering fades it
-   back in at the cursor. */
+/* Leaving the chat area fades the head out where it stands; re-entering puts it
+   back under the cursor. The wake is left alone: it finishes its own fade. */
 html[data-zone-skin] .zone-atmosphere[data-zone-lens="off"] .zone-lens { opacity: 0; }
 html[data-zone-skin][data-zone-dots="off"] .zone-halftone,
-html[data-zone-skin][data-zone-dots="off"] .zone-lens { display: none; }
+html[data-zone-skin][data-zone-dots="off"] .zone-lens,
+html[data-zone-skin][data-zone-dots="off"] .zone-trail { display: none; }
 html[data-zone-skin] .zone-tick {
   position: absolute; width: 16px; height: 16px;
   border: 0 solid color-mix(in srgb, var(--zone-brand) 48%, transparent);
@@ -1275,6 +1279,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
         const state = useView();
         const [intro, setIntro] = React.useState(true);
         const layer = React.useRef(null);
+        const trail = React.useRef(null);
         React.useEffect(() => {
           const timer = window.setTimeout(() => setIntro(false), 1500);
           return () => window.clearTimeout(timer);
@@ -1376,30 +1381,107 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
           };
         }, []);
 
-        /* Pointer lens for the halftone: publish the cursor position inside the
-           panel as variables, at most once per frame. Motion "off" (and the
-           system reduced-motion preference, which maps to it) leaves the lens at
-           its parked off-panel position. */
+        /* Pointer lens for the halftone. The head is written from the pointer
+           event itself — no follower easing — so the mask circle is under the
+           cursor at the next paint instead of trailing behind it. The wake is a
+           canvas: the same 4px squares on the same 7px grid, stamped wherever the
+           pointer crosses a cell and faded a little every frame, so a sweep keeps
+           drawing a dotted line behind the cursor and that line then dissolves
+           over several seconds. Motion "off" (and the system reduced-motion
+           preference, which maps to it) leaves both parked. */
         React.useEffect(() => {
           const element = layer.current;
-          if (!element) return undefined;
+          const canvas = trail.current;
+          if (!element || !canvas || !state.dots) return undefined;
+          const context = canvas.getContext('2d');
+          if (!context) return undefined;
           if (state.effectiveMotion === 'off') {
             element.style.removeProperty('--zone-pointer-x');
             element.style.removeProperty('--zone-pointer-y');
             return undefined;
           }
+          const PITCH = 7;      // the halftone tile, in CSS px
+          const INSET = 1.5;    // square offset inside the tile
+          const DOT = 4;        // square side
+          const BRUSH = 20;     // wake half-width
+          const STEP = 3;       // px between stamps along one segment
+          const FADE = 0.01;    // alpha shed per 60 Hz frame: ~1.15 s half-life
+          const JUMP = 96;      // a longer gap between samples is not a line
+          /* Eight alpha steps from the centre of the brush to its rim, so the
+             wake has a soft edge instead of a stencil border. Pre-built strings
+             keep a stamp from allocating one colour per cell. */
+          const WAKE = brandOf(state.colorway, state.mode);
+          const RAMP = [0.32, 0.42, 0.51, 0.61, 0.7, 0.8, 0.9, 1]
+            .map((share) => rgba(WAKE, 0.22 * share));
+
+          let rect = element.getBoundingClientRect();
+          let dpr = 0;
           let frame = 0;
-          let targetX = 0;
-          let targetY = 0;
-          let leadX = 0;
-          let leadY = 0;
-          let tailX = 0;
-          let tailY = 0;
+          let last = 0;
+          let stampedAt = 0;
+          let fromX = null;
+          let fromY = null;
           let active = false;
+
+          const size = () => {
+            rect = element.getBoundingClientRect();
+            const next = Math.min(window.devicePixelRatio || 1, 2);
+            const width = Math.max(1, Math.round(rect.width * next));
+            const height = Math.max(1, Math.round(rect.height * next));
+            if (next === dpr && canvas.width === width && canvas.height === height) return;
+            dpr = next;
+            canvas.width = width;
+            canvas.height = height;
+            context.setTransform(dpr, 0, 0, dpr, 0, 0);
+          };
+          size();
+
+          /* One 4px square per grid cell the brush covers. Crossing a cell again
+             simply re-lights it; the fade is what makes the wake age. */
+          const stamp = (x, y) => {
+            const limit = BRUSH * BRUSH;
+            const first = Math.floor((x - BRUSH) / PITCH);
+            const lastCol = Math.floor((x + BRUSH) / PITCH);
+            const top = Math.floor((y - BRUSH) / PITCH);
+            const bottom = Math.floor((y + BRUSH) / PITCH);
+            for (let col = first; col <= lastCol; col += 1) {
+              for (let row = top; row <= bottom; row += 1) {
+                const cx = col * PITCH + INSET + DOT / 2;
+                const cy = row * PITCH + INSET + DOT / 2;
+                const d2 = (cx - x) * (cx - x) + (cy - y) * (cy - y);
+                if (d2 > limit) continue;
+                context.fillStyle = RAMP[Math.min(7, Math.floor((1 - d2 / limit) * 8))];
+                context.fillRect(col * PITCH + INSET, row * PITCH + INSET, DOT, DOT);
+              }
+            }
+          };
+
+          /* Erase a little of the whole bitmap every frame; alpha decays
+             exponentially, which is what gives a long tail and a soft end. The
+             amount is scaled by the frame's own duration, so a 120 Hz window
+             fades at the same wall-clock rate as a 60 Hz one. The loop stops once
+             the wake has been alone long enough to be gone. */
+          const fade = (now) => {
+            frame = 0;
+            const step = last ? Math.min(64, now - last) : 1000 / 60;
+            last = now;
+            const shed = 1 - Math.pow(1 - FADE, step / (1000 / 60));
+            context.globalCompositeOperation = 'destination-out';
+            context.fillStyle = 'rgba(0, 0, 0, ' + shed.toFixed(4) + ')';
+            context.fillRect(0, 0, rect.width, rect.height);
+            context.globalCompositeOperation = 'source-over';
+            if (now - stampedAt > 6000) {
+              context.clearRect(0, 0, rect.width, rect.height);
+              last = 0;
+              return;
+            }
+            frame = window.requestAnimationFrame(fade);
+          };
+
           /* The dots are the sheet's background, so the lens only lights the
              chat area: below the header and above the composer card. Outside
-             that band the lens fades out and its position is left where it was,
-             which keeps the composer and the device bar free of dots. */
+             that band the head fades out and nothing new is stamped, which keeps
+             the composer and the device bar free of dots. */
           const inChat = (x, y) => {
             const card = document.querySelector('[data-slot="conversation.composer.bar"] [class*="_card"]');
             if (!card) return true;
@@ -1408,58 +1490,79 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
             const bottom = card.getBoundingClientRect().top;
             return y >= top && y < bottom;
           };
-          /* Two followers: the bright head eases quickly, the faint tail much
-             more slowly, so a moving cursor drags a short trail behind it and
-             both settle back once the pointer stops. */
-          const tick = () => {
-            frame = 0;
-            leadX += (targetX - leadX) * 0.3;
-            leadY += (targetY - leadY) * 0.3;
-            tailX += (targetX - tailX) * 0.05;
-            tailY += (targetY - tailY) * 0.05;
-            const rect = element.getBoundingClientRect();
-            element.style.setProperty('--zone-pointer-x', `${Math.round(leadX - rect.left)}px`);
-            element.style.setProperty('--zone-pointer-y', `${Math.round(leadY - rect.top)}px`);
-            element.style.setProperty('--zone-tail-x', `${Math.round(tailX - rect.left)}px`);
-            element.style.setProperty('--zone-tail-y', `${Math.round(tailY - rect.top)}px`);
-            if (Math.abs(targetX - leadX) > 0.4 || Math.abs(targetY - leadY) > 0.4
-              || Math.abs(targetX - tailX) > 0.4 || Math.abs(targetY - tailY) > 0.4) {
-              frame = window.requestAnimationFrame(tick);
-            }
-          };
+
           const onMove = (event) => {
-            const inside = inChat(event.clientX, event.clientY);
-            if (!inside) {
+            if (!inChat(event.clientX, event.clientY)) {
               if (active) {
                 active = false;
+                fromX = null;
                 element.setAttribute('data-zone-lens', 'off');
               }
               return;
             }
-            targetX = event.clientX;
-            targetY = event.clientY;
+            /* The head is exact: written where the pointer is, not eased toward
+               it, so the lit dots never lag the mouse. */
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            element.style.setProperty('--zone-pointer-x', Math.round(x) + 'px');
+            element.style.setProperty('--zone-pointer-y', Math.round(y) + 'px');
             if (!active) {
+              /* Entering the chat: start the wake at the cursor, so the jump in
+                 does not draw a line across the sheet. */
               active = true;
-              /* Re-entering the chat: start both followers at the cursor so the
-                 lens does not fly in from wherever it stopped. */
-              leadX = targetX;
-              leadY = targetY;
-              tailX = targetX;
-              tailY = targetY;
+              fromX = x;
+              fromY = y;
               element.setAttribute('data-zone-lens', 'on');
             }
-            if (!frame) frame = window.requestAnimationFrame(tick);
-          };
-          window.addEventListener('pointermove', onMove, { passive: true });
-          return () => {
-            window.removeEventListener('pointermove', onMove);
-            if (frame) window.cancelAnimationFrame(frame);
-            element.removeAttribute('data-zone-lens');
-            for (const name of ['--zone-pointer-x', '--zone-pointer-y', '--zone-tail-x', '--zone-tail-y']) {
-              element.style.removeProperty(name);
+            if (fromX === null) {
+              fromX = x;
+              fromY = y;
+            }
+            const dx = x - fromX;
+            const dy = y - fromY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance < 1) return;
+            if (distance > JUMP) {
+              /* A jump — the pointer left and came back, or the browser dropped
+                 the intermediate samples: light the new spot instead of ruling a
+                 line across the sheet. */
+              stamp(x, y);
+            } else {
+              const steps = Math.max(1, Math.ceil(distance / STEP));
+              for (let step = 1; step <= steps; step += 1) {
+                stamp(fromX + (dx * step) / steps, fromY + (dy * step) / steps);
+              }
+            }
+            fromX = x;
+            fromY = y;
+            stampedAt = performance.now();
+            if (!frame) {
+              last = 0;
+              frame = window.requestAnimationFrame(fade);
             }
           };
-        }, [state.effectiveMotion]);
+
+          const observer = typeof ResizeObserver === 'function'
+            ? new ResizeObserver(() => size())
+            : undefined;
+          if (observer) observer.observe(element);
+          window.addEventListener('pointermove', onMove, { passive: true });
+          window.addEventListener('resize', size);
+          /* A sidebar toggle moves the panel without resizing it, so the offset
+             from the pointer to the layer is re-read on the same slow poll the
+             panel measurement uses. */
+          const poll = window.setInterval(size, 1000);
+          return () => {
+            window.clearInterval(poll);
+            window.removeEventListener('resize', size);
+            window.removeEventListener('pointermove', onMove);
+            if (observer) observer.disconnect();
+            if (frame) window.cancelAnimationFrame(frame);
+            element.removeAttribute('data-zone-lens');
+            element.style.removeProperty('--zone-pointer-x');
+            element.style.removeProperty('--zone-pointer-y');
+          };
+        }, [state.effectiveMotion, state.dots, state.colorway, state.mode]);
 
         const animate = intro && state.effectiveMotion === 'full';
         return h('div', {
@@ -1471,7 +1574,7 @@ html[data-zone-skin][data-zone-motion="off"] .zone-btn:hover { transform: none; 
         h('div', { className: 'zone-cast' }),
         h('div', { className: 'zone-cast-top' }),
         h('div', { className: 'zone-halftone' }),
-        h('div', { className: 'zone-halftone-tail zone-lens' }),
+        h('canvas', { className: 'zone-trail', ref: trail }),
         h('div', { className: 'zone-halftone-hot zone-lens' }),
         h('span', { className: 'zone-tick zone-tick-tl' }),
         h('span', { className: 'zone-tick zone-tick-tr' }),
